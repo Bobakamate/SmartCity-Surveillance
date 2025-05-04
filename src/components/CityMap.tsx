@@ -12,6 +12,11 @@ interface Camera {
   detections: number;
 }
 
+// Props pour notre composant CityMap
+interface CityMapProps {
+  onViewCamera?: (camera: Camera) => void;
+}
+
 // Données fictives des caméras
 const camerasData: Camera[] = [
   { id: "CAM001", lat: 35.759465, lng: -5.833954, status: "En ligne", detections: 24 },
@@ -27,7 +32,7 @@ const camerasData: Camera[] = [
 ];
 
 // Fonction personnalisée pour créer des icônes de marqueur
-const createMarkerIcon = (detections:'En ligne' | 'Hors ligne' | 'En maintenance' ) => {
+const createMarkerIcon = (detections: 'En ligne' | 'Hors ligne' | 'En maintenance') => {
   let color = 'yellow';
   if (detections == "Hors ligne") color = 'red';
   if (detections == "En ligne") color = 'green';
@@ -40,11 +45,18 @@ const createMarkerIcon = (detections:'En ligne' | 'Hors ligne' | 'En maintenance
   });
 };
 
-const CityMap: React.FC = () => {
+const CityMap: React.FC<CityMapProps> = ({ onViewCamera }) => {
   const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
 
   // Position centrale de Tanger
   const centerPosition: [number, number] = [35.7595, -5.8340];
+
+  // Gestionnaire pour le clic sur "Voir la camera"
+  const handleViewCamera = (camera: Camera) => {
+    if (onViewCamera) {
+      onViewCamera(camera);
+    }
+  };
 
   return (
       <div className="h-full flex flex-col rounded-lg overflow-hidden border border-gray-700 shadow-lg">
@@ -112,7 +124,12 @@ const CityMap: React.FC = () => {
                       <p className="text-xs">
                         Coordonnées: {camera.lat.toFixed(4)}, {camera.lng.toFixed(4)}
                       </p>
-                      <button className={"text-white"}>Voir la camera</button>
+                      <button
+                          className="mt-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          onClick={() => handleViewCamera(camera)}
+                      >
+                        Voir la camera
+                      </button>
                     </div>
                   </Popup>
                 </Marker>

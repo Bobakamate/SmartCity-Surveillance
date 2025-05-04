@@ -16,6 +16,11 @@ interface SupportStation {
   services: string[];
 }
 
+// Props definition to receive the call handler
+interface SupportMapProps {
+  onMakeCall: (station: SupportStation) => void;
+}
+
 // Mock support stations data with more details
 const supportStationsData: SupportStation[] = [
   {
@@ -95,7 +100,7 @@ const createStationMarkerIcon = (type: string) => {
   });
 };
 
-const SupportStationsMap: React.FC = () => {
+const SupportStationsMap: React.FC<SupportMapProps> = ({ onMakeCall }) => {
   const [selectedStation, setSelectedStation] = useState<SupportStation | null>(null);
   const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
 
@@ -112,6 +117,12 @@ const SupportStationsMap: React.FC = () => {
       end
     ];
     return steps;
+  };
+
+  // Handle call button click
+  const handleCallButtonClick = (e: React.MouseEvent, station: SupportStation) => {
+    e.stopPropagation(); // Prevent the card click from triggering
+    onMakeCall(station);
   };
 
   return (
@@ -217,11 +228,12 @@ const SupportStationsMap: React.FC = () => {
                     </ul>
                   </div>
                   <div className="mt-3 flex justify-between">
-                    <a
+                    <button
                         className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-xs"
+                        onClick={(e) => handleCallButtonClick(e, station)}
                     >
                       Appeler
-                    </a>
+                    </button>
                     <button
                         className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md text-xs"
                         onClick={() => setSelectedStation(station)}
