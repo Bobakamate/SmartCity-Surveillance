@@ -3,5 +3,6 @@
     "env": {
       "NODE_VERSION": "18.x"
     }
-  }
+  },
+  "buildCommand": "npm i --no-optional && npm run build"
 }
