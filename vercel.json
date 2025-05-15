@@ -1,16 +1,8 @@
 {
-  "version": 2,
-  "buildCommand": "npm i --force && npm run build",
-  "installCommand": "npm install --omit=optional",
   "framework": "vite",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/node",
-      "config": { "nodeVersion": "22.x" }
-    }
-  ],
-   "routes": [
+  "installCommand": "npm install --omit=optional",
+  "buildCommand": "npm run build",
+  "routes": [
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
