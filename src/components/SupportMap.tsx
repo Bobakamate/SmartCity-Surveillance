@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+// Correction pour les icônes Leaflet en React
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
 // Types for support stations
 interface SupportStation {
@@ -20,6 +24,16 @@ interface SupportStation {
 interface SupportMapProps {
   onMakeCall: (station: SupportStation) => void;
 }
+
+// Correction des icônes Leaflet par défaut
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 // Mock support stations data with more details
 const supportStationsData: SupportStation[] = [
@@ -100,12 +114,32 @@ const createStationMarkerIcon = (type: string) => {
   });
 };
 
+// Composant pour initialiser la carte correctement
+function MapInitializer() {
+  const map = useMap();
+  
+  useEffect(() => {
+    // Force une réinitialisation de la carte après le montage
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+  }, [map]);
+  
+  return null;
+}
+
 const SupportStationsMap: React.FC<SupportMapProps> = ({ onMakeCall }) => {
   const [selectedStation, setSelectedStation] = useState<SupportStation | null>(null);
   const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
+  const [mapReady, setMapReady] = useState(false);
 
   // Center position of Tangier
   const centerPosition: [number, number] = [35.7595, -5.8340];
+
+  // Effet pour définir mapReady après le montage initial
+  useEffect(() => {
+    setMapReady(true);
+  }, []);
 
   // Generate mock routing data
   const generateRouting = (start: [number, number], end: [number, number]) => {
@@ -122,134 +156,191 @@ const SupportStationsMap: React.FC<SupportMapProps> = ({ onMakeCall }) => {
   // Handle call button click
   const handleCallButtonClick = (e: React.MouseEvent, station: SupportStation) => {
     e.stopPropagation(); // Prevent the card click from triggering
+    e.preventDefault(); // Prévenir le comportement par défaut
     onMakeCall(station);
   };
 
+  // Handle station selection with prevention of event propagation
+  const handleStationClick = (station: SupportStation, e: L.LeafletMouseEvent) => {
+    e.originalEvent.stopPropagation(); // Empêcher la propagation de l'événement
+    setSelectedStation(station);
+  };
+
   return (
-      <div className="container mx-auto p-4 max-w-6xl">
-        <div className="bg-gray-900 rounded-lg shadow-lg overflow-hidden flex flex-col md:flex-row">
-          {/* Map Container */}
-          <div className="w-full md:w-2/3 h-[500px]">
-            <MapContainer
-                center={centerPosition}
-                zoom={13}
-                scrollWheelZoom={false}
-                className="h-full w-full z-10"
+    <div className="container mx-auto p-4 max-w-6xl">
+      <div className="bg-gray-900 rounded-lg shadow-lg overflow-hidden flex flex-col md:flex-row">
+        {/* Map Container */}
+        <div className="w-full md:w-2/3 h-[500px]">
+          <MapContainer
+            center={centerPosition}
+            zoom={13}
+            scrollWheelZoom={true}
+            className="h-full w-full z-10"
+            whenCreated={(map) => {
+              // Force une réinitialisation de la carte après qu'elle est créée
+              setTimeout(() => {
+                map.invalidateSize();
+              }, 100);
+            }}
+          >
+            <MapInitializer />
+            
+            <TileLayer
+              url={
+                mapType === 'satellite'
+                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+              }
+              attribution={
+                mapType === 'satellite'
+                  ? 'Tiles © Esri'
+                  : '© OpenStreetMap contributors'
+              }
+            />
+
+            {/* User Position Marker */}
+            <Marker
+              position={userPosition}
+              icon={L.divIcon({
+                className: 'custom-marker-icon',
+                html: `<div style="background-color:yellow;width:20px;height:20px;border-radius:50%;border:3px solid white;"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+              })}
+              eventHandlers={{
+                click: (e) => {
+                  e.originalEvent.stopPropagation();
+                }
+              }}
             >
-              <TileLayer
-                  url={
-                    mapType === 'satellite'
-                        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-                  }
-                  attribution={
-                    mapType === 'satellite'
-                        ? 'Tiles © Esri'
-                        : '© OpenStreetMap contributors'
-                  }
-              />
+              <Popup>Votre position</Popup>
+            </Marker>
 
-              {/* User Position Marker */}
-              <Marker
-                  position={userPosition}
-                  icon={L.divIcon({
-                    className: 'custom-marker-icon',
-                    html: `<div style="background-color:yellow;width:20px;height:20px;border-radius:50%;border:3px solid white;"></div>`,
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                  })}
-              >
-                <Popup>Votre position</Popup>
-              </Marker>
-
-              {/* Support Stations Markers */}
-              {supportStationsData.map((station) => (
-                  <Marker
-                      key={station.id}
-                      position={[station.lat, station.lng]}
-                      icon={createStationMarkerIcon(station.type)}
-                      eventHandlers={{
-                        click: () => setSelectedStation(station)
-                      }}
-                  >
-                    <Popup>
-                      <div>
-                        <h3 className="font-bold">{station.name}</h3>
-                        <p>Adresse: {station.address}</p>
-                        <p>Téléphone: {station.phone}</p>
-                        <p>Distance: {station.distance} km</p>
-                      </div>
-                    </Popup>
-                  </Marker>
-              ))}
-
-              {/* Routing Line */}
-              {selectedStation && (
-                  <Polyline
-                      positions={generateRouting(userPosition, [selectedStation.lat, selectedStation.lng])}
-                      color="blue"
-                      weight={5}
-                      opacity={0.7}
-                  />
-              )}
-            </MapContainer>
-          </div>
-
-          {/* Services List */}
-          <div className="w-full md:w-1/3 bg-gray-800 p-4 overflow-y-auto max-h-[500px]">
-            <h3 className="text-xl font-semibold text-white mb-4">Services de Soutien</h3>
+            {/* Support Stations Markers */}
             {supportStationsData.map((station) => (
-                <div
-                    key={station.id}
-                    className={`mb-4 p-3 rounded-lg transition-all duration-300 
-                ${selectedStation?.id === station.id
-                        ? 'bg-blue-900 border-2 border-blue-600'
-                        : 'bg-gray-900 hover:bg-gray-700'}`}
-                    onClick={() => setSelectedStation(station)}
-                >
-                  <div className="flex items-center mb-2">
-                    <div
-                        className={`w-4 h-4 rounded-full mr-3 
-                    ${station.type === 'police' ? 'bg-blue-500' :
-                            station.type === 'fire' ? 'bg-red-500' :
-                                station.type === 'medical' ? 'bg-green-500' :
-                                    'bg-purple-500'}`}
-                    ></div>
-                    <h4 className="text-white font-medium">{station.name}</h4>
-                  </div>
-                  <p className="text-gray-400 text-sm mb-2">{station.address}</p>
-                  <p className="text-gray-300 text-xs mb-2">Distance: {station.distance} km</p>
-                  <div className="mt-2">
-                    <h5 className="text-gray-200 text-xs font-semibold mb-1">Services:</h5>
-                    <ul className="list-disc list-inside text-gray-300 text-xs">
-                      {station.services.map((service, index) => (
-                          <li key={index}>{service}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="mt-3 flex justify-between">
+              <Marker
+                key={station.id}
+                position={[station.lat, station.lng]}
+                icon={createStationMarkerIcon(station.type)}
+                eventHandlers={{
+                  click: (e) => {
+                    handleStationClick(station, e);
+                  }
+                }}
+              >
+                <Popup>
+                  <div>
+                    <h3 className="font-bold">{station.name}</h3>
+                    <p>Adresse: {station.address}</p>
+                    <p>Téléphone: {station.phone}</p>
+                    <p>Distance: {station.distance} km</p>
                     <button
-                        className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-xs"
-                        onClick={(e) => handleCallButtonClick(e, station)}
+                      className="mt-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleCallButtonClick(e as any, station);
+                      }}
                     >
                       Appeler
                     </button>
-                    <button
-                        className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md text-xs"
-                        onClick={() => setSelectedStation(station)}
-                    >
-                      Itinéraire
-                    </button>
                   </div>
-                </div>
-
+                </Popup>
+              </Marker>
             ))}
-            <div className="pt-20">
 
-            </div>
+            {/* Routing Line */}
+            {selectedStation && (
+              <Polyline
+                positions={generateRouting(userPosition, [selectedStation.lat, selectedStation.lng])}
+                color="blue"
+                weight={5}
+                opacity={0.7}
+              />
+            )}
+          </MapContainer>
+        </div>
+
+        {/* Services List */}
+        <div className="w-full md:w-1/3 bg-gray-800 p-4 overflow-y-auto max-h-[500px]">
+          <h3 className="text-xl font-semibold text-white mb-4">Services de Soutien</h3>
+          
+          {/* Ajout des boutons de type de carte */}
+          <div className="mb-4 flex space-x-2">
+            <button
+              className={`px-3 py-1 rounded-md text-sm ${
+                mapType === 'satellite'
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-700 hover:bg-gray-600'
+              } text-white`}
+              onClick={() => setMapType('satellite')}
+            >
+              Vue Satellite
+            </button>
+            <button
+              className={`px-3 py-1 rounded-md text-sm ${
+                mapType === 'standard'
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-700 hover:bg-gray-600'
+              } text-white`}
+              onClick={() => setMapType('standard')}
+            >
+              Vue Standard
+            </button>
           </div>
+          
+          {supportStationsData.map((station) => (
+            <div
+              key={station.id}
+              className={`mb-4 p-3 rounded-lg transition-all duration-300 
+                ${selectedStation?.id === station.id
+                  ? 'bg-blue-900 border-2 border-blue-600'
+                  : 'bg-gray-900 hover:bg-gray-700'}`}
+              onClick={() => setSelectedStation(station)}
+            >
+              <div className="flex items-center mb-2">
+                <div
+                  className={`w-4 h-4 rounded-full mr-3 
+                    ${station.type === 'police' ? 'bg-blue-500' :
+                      station.type === 'fire' ? 'bg-red-500' :
+                      station.type === 'medical' ? 'bg-green-500' :
+                      'bg-purple-500'}`}
+                ></div>
+                <h4 className="text-white font-medium">{station.name}</h4>
+              </div>
+              <p className="text-gray-400 text-sm mb-2">{station.address}</p>
+              <p className="text-gray-300 text-xs mb-2">Distance: {station.distance} km</p>
+              <div className="mt-2">
+                <h5 className="text-gray-200 text-xs font-semibold mb-1">Services:</h5>
+                <ul className="list-disc list-inside text-gray-300 text-xs">
+                  {station.services.map((service, index) => (
+                    <li key={index}>{service}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-3 flex justify-between">
+                <button
+                  className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-xs"
+                  onClick={(e) => handleCallButtonClick(e, station)}
+                >
+                  Appeler
+                </button>
+                <button
+                  className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedStation(station);
+                  }}
+                >
+                  Itinéraire
+                </button>
+              </div>
+            </div>
+          ))}
+          <div className="pt-4"> </div>
         </div>
       </div>
+    </div>
   );
 };
 
