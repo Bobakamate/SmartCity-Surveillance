@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+// Correction pour les icônes Leaflet en React
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
 // Types pour les données de caméras
 interface Camera {
@@ -16,6 +20,16 @@ interface Camera {
 interface CityMapProps {
   onViewCamera?: (camera: Camera) => void;
 }
+
+// Correction des icônes Leaflet par défaut
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 // Données fictives des caméras
 const camerasData: Camera[] = [
@@ -32,10 +46,10 @@ const camerasData: Camera[] = [
 ];
 
 // Fonction personnalisée pour créer des icônes de marqueur
-const createMarkerIcon = (detections: 'En ligne' | 'Hors ligne' | 'En maintenance') => {
+const createMarkerIcon = (status: 'En ligne' | 'Hors ligne' | 'En maintenance') => {
   let color = 'yellow';
-  if (detections == "Hors ligne") color = 'red';
-  if (detections == "En ligne") color = 'green';
+  if (status === "Hors ligne") color = 'red';
+  if (status === "En ligne") color = 'green';
 
   return L.divIcon({
     className: 'custom-marker-icon',
@@ -45,14 +59,37 @@ const createMarkerIcon = (detections: 'En ligne' | 'Hors ligne' | 'En maintenanc
   });
 };
 
+// Composant pour initialiser la carte correctement
+function MapInitializer() {
+  const map = useMap();
+
+  useEffect(() => {
+    // Force une réinitialisation de la carte après le montage
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+  }, [map]);
+
+  return null;
+}
+
 const CityMap: React.FC<CityMapProps> = ({ onViewCamera }) => {
   const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
+  const [mapReady, setMapReady] = useState(false);
 
   // Position centrale de Tanger
   const centerPosition: [number, number] = [35.7595, -5.8340];
 
+  // Effet pour définir mapReady après le montage initial
+  useEffect(() => {
+    setMapReady(true);
+  }, []);
+
   // Gestionnaire pour le clic sur "Voir la camera"
-  const handleViewCamera = (camera: Camera) => {
+  const handleViewCamera = (camera: Camera, e: React.MouseEvent) => {
+    e.preventDefault(); // Empêche la propagation qui pourrait causer un zoom
+    e.stopPropagation();
+
     if (onViewCamera) {
       onViewCamera(camera);
     }
@@ -92,9 +129,17 @@ const CityMap: React.FC<CityMapProps> = ({ onViewCamera }) => {
           <MapContainer
               center={centerPosition}
               zoom={13}
-              scrollWheelZoom={false}
+              scrollWheelZoom={true}
               className="h-full w-full z-10"
+              whenCreated={(map) => {
+                // Force une réinitialisation de la carte après qu'elle est créée
+                setTimeout(() => {
+                  map.invalidateSize();
+                }, 100);
+              }}
           >
+            <MapInitializer />
+
             {/* Couche de tuiles */}
             <TileLayer
                 url={
@@ -115,6 +160,12 @@ const CityMap: React.FC<CityMapProps> = ({ onViewCamera }) => {
                     key={camera.id}
                     position={[camera.lat, camera.lng]}
                     icon={createMarkerIcon(camera.status)}
+                    eventHandlers={{
+                      click: (e) => {
+                        // Empêche le comportement par défaut de zoom
+                        e.originalEvent.stopPropagation();
+                      }
+                    }}
                 >
                   <Popup>
                     <div>
@@ -126,7 +177,7 @@ const CityMap: React.FC<CityMapProps> = ({ onViewCamera }) => {
                       </p>
                       <button
                           className="mt-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                          onClick={() => handleViewCamera(camera)}
+                          onClick={(e) => handleViewCamera(camera, e)}
                       >
                         Voir la camera
                       </button>
