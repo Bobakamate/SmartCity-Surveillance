@@ -1,7 +1,7 @@
 {
   "framework": "vite",
-  "installCommand": "npm install --omit=optional",
-  "buildCommand": "npm run build",
+  "installCommand": "npm install --no-optional --no-package-lock --no-audit",
+  "buildCommand": "npx -p rollup -c 'npm run build'",
   "routes": [
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
